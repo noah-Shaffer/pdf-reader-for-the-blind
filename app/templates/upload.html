@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload a PDF - Accessible Document Converter</title>
+  <style>
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: #fff;
+      color: #000;
+      padding: 0.5em 1em;
+      z-index: 100;
+    }
+    .skip-link:focus {
+      left: 0.5em;
+      top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <header>
+    <h1>Accessible Document Converter</h1>
+    <p>Upload a PDF and get back a screen-reader-friendly HTML version, with charts and images described in words.</p>
+  </header>
+
+  <main id="main">
+    {% if error %}
+      <div role="alert" aria-live="assertive">
+        <p><strong>Error:</strong> {{ error }}</p>
+      </div>
+    {% endif %}
+
+    <form id="upload-form" action="{{ url_for('upload_submit') }}" method="post" enctype="multipart/form-data">
+      <div>
+        <label for="pdf-file">Choose a PDF file to convert</label>
+        <input type="file" id="pdf-file" name="pdf" accept="application/pdf" required>
+      </div>
+
+      <button id="submit-button" type="submit">Convert PDF</button>
+    </form>
+
+    <div id="upload-status" aria-live="polite" role="status">
+      <p>Converting a document can take a few minutes, especially for longer PDFs. Please wait after submitting.</p>
+    </div>
+  </main>
+
+  <script>
+    // Progressive enhancement: the form still works with JS disabled --
+    // the browser's own navigation/loading state is the only feedback then.
+    // With JS, confirm the submission happened immediately, for sighted
+    // users (button state) and screen reader users (the aria-live region
+    // re-announces because its text content changes) alike.
+    document.getElementById('upload-form').addEventListener('submit', function () {
+      var button = document.getElementById('submit-button');
+      button.disabled = true;
+      button.textContent = 'Converting…';
+
+      document.getElementById('upload-status').innerHTML =
+        '<p>Your file was submitted and is now converting. This can take a few minutes for longer or figure-heavy PDFs — please keep this tab open.</p>';
+    });
+  </script>
+</body>
+</html>

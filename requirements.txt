@@ -1,0 +1,7 @@
+flask
+pymupdf
+pymupdf4llm
+anthropic
+latex2mathml
+markdown
+python-dotenv

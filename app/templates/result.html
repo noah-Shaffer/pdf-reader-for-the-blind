@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ filename }} - Converted Document</title>
+  <style>
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: #fff;
+      color: #000;
+      padding: 0.5em 1em;
+      z-index: 100;
+    }
+    .skip-link:focus {
+      left: 0.5em;
+      top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <header>
+    <p><a href="{{ url_for('upload_form') }}">&larr; Convert another PDF</a></p>
+    {% if job_id and download_name %}
+      <p><a id="download-link" href="{{ url_for('download_file', job_id=job_id, filename=download_name) }}">Download this page as an HTML file</a></p>
+      <div id="download-status" aria-live="polite" role="status"></div>
+    {% endif %}
+  </header>
+
+  <main id="main">
+    {{ content | safe }}
+  </main>
+
+  {% if job_id and download_name %}
+  <script>
+    // A file download has no in-page confirmation by default -- sighted
+    // users see the browser's own download bar/toast, but a screen reader
+    // user gets no equivalent signal that anything happened. Announcing it
+    // here mirrors the upload form's submit confirmation.
+    document.getElementById('download-link').addEventListener('click', function () {
+      document.getElementById('download-status').textContent =
+        'Downloading {{ download_name }}…';
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

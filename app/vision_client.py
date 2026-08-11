@@ -116,24 +116,21 @@ PAGE_TOOL = {
 }
 
 
-def transcribe_page(pdf_path, page_number, dpi=200, context_text=None):
-    """Fallback for a page where local text extraction produced broken math
-    (see document_parser._page_looks_math_garbled): renders just that page
-    and asks Claude to transcribe it directly, with real LaTeX in place of
-    garbled font output. Figures on the page are left untouched -- their
-    extraction doesn't depend on font decoding, so they're usually fine
-    already; only the text/math on the page gets replaced by the caller.
-
-    context_text: the *local* (possibly also garbled) text of a neighboring
-    page, if available -- helps with continuity of notation across a
-    derivation that spans pages. Deliberately not the *transcribed* text of
-    a neighboring page: that would make each page's call depend on another
-    page's result and block parallelizing them."""
+def _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=None):
+    """Renders either the full page (y_fraction=None) or a vertical slice of
+    it (y_fraction=(y0, y1), as fractions of page height) and asks Claude to
+    transcribe that image. Shared by transcribe_page's full-page attempt and
+    its split-page retry (see transcribe_page)."""
     doc = fitz.open(pdf_path)
     try:
         page = doc[page_number - 1]
         zoom = dpi / 72
-        image_bytes = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
+        clip = None
+        if y_fraction is not None:
+            rect = page.rect
+            y0f, y1f = y_fraction
+            clip = fitz.Rect(rect.x0, rect.y0 + rect.height * y0f, rect.x1, rect.y0 + rect.height * y1f)
+        image_bytes = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), clip=clip).tobytes("png")
     finally:
         doc.close()
 
@@ -154,7 +151,14 @@ def transcribe_page(pdf_path, page_number, dpi=200, context_text=None):
                 ),
             }
         )
-    content.append({"type": "text", "text": PAGE_INSTRUCTION})
+    instruction = PAGE_INSTRUCTION
+    if y_fraction is not None:
+        instruction += (
+            " This image is only the "
+            + ("top" if y_fraction[0] == 0 else "bottom")
+            + " half of the page -- transcribe only what's visible here, don't guess at content that's been cut off."
+        )
+    content.append({"type": "text", "text": instruction})
 
     client = anthropic.Anthropic()
     response = client.messages.create(
@@ -174,6 +178,42 @@ def transcribe_page(pdf_path, page_number, dpi=200, context_text=None):
         response.stop_reason,
     )
     return []
+
+
+def transcribe_page(pdf_path, page_number, dpi=200, context_text=None):
+    """Fallback for a page where local text extraction produced broken math
+    (see document_parser._page_looks_math_garbled): renders just that page
+    and asks Claude to transcribe it directly, with real LaTeX in place of
+    garbled font output. Figures on the page are left untouched -- their
+    extraction doesn't depend on font decoding, so they're usually fine
+    already; only the text/math on the page gets replaced by the caller.
+
+    context_text: the *local* (possibly also garbled) text of a neighboring
+    page, if available -- helps with continuity of notation across a
+    derivation that spans pages. Deliberately not the *transcribed* text of
+    a neighboring page: that would make each page's call depend on another
+    page's result and block parallelizing them.
+
+    Seen in practice: some pages get their *entire* full-page transcription
+    rejected by the API's output content filter, even though the page's
+    content is completely ordinary (dense math notation, nothing sensitive)
+    -- confirmed by testing that the exact same page, split into top/bottom
+    halves and transcribed as two separate (shorter, less symbol-dense)
+    calls, succeeds cleanly every time where the single full-page call
+    reliably fails. So on that specific failure, retry once via a
+    two-region split before giving up -- only if a full-page attempt is
+    rejected, since splitting doubles the API calls for every garbled page,
+    not just the rare one that needs it."""
+    try:
+        return _transcribe_page_region(pdf_path, page_number, dpi, context_text)
+    except anthropic.APIError:
+        logger.warning(
+            "transcribe_page full-page attempt failed for page %d; retrying as top/bottom halves",
+            page_number,
+        )
+        top = _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=(0.0, 0.5))
+        bottom = _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=(0.5, 1.0))
+        return top + bottom
 
 
 def _encode_image(path):

@@ -52,14 +52,10 @@ operating system:
 
 The app opens its own window with the same upload form as the web version:
 paste in your Anthropic API key, choose a PDF, and convert. Your key is
-remembered in the app for next time — it's never sent anywhere except
+remembered in the app for next time, but not if you close the app— it's never sent anywhere except
 directly to Anthropic for your own conversions.
 
-Converted documents are saved automatically to:
-
-- macOS: `~/Library/Application Support/STEM-Access/uploads/`
-- Windows: `%APPDATA%\STEM-Access\uploads\`
-- Linux: `~/.local/share/STEM-Access/uploads/`
+Converted documents are saved to the user specified location, after clicking "Download this page as an HTML file"
 
 ## Troubleshooting
 

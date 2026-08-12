@@ -22,13 +22,13 @@ jobs:
           # that instead of both.
           - os: macos-latest
             artifact_name: stem-access-macos
-            dist_path: app/dist/STEM-Access.app
+            build_name: STEM-Access.app
           - os: windows-latest
             artifact_name: stem-access-windows
-            dist_path: app/dist/STEM-Access
+            build_name: STEM-Access
           - os: ubuntu-latest
             artifact_name: stem-access-linux
-            dist_path: app/dist/STEM-Access
+            build_name: STEM-Access
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -47,10 +47,23 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller STEM-Access.spec --noconfirm
 
+      - name: Stage the build output on its own
+        # actions/upload-artifact treats a single explicit directory path
+        # differently from a glob: given one literal directory, it uploads
+        # that directory's *contents* as the artifact root, silently
+        # dropping the directory's own name (STEM-Access.app). A glob over
+        # a staging folder containing just that one entry preserves the
+        # name instead -- confirmed against the original app/dist/* build,
+        # which did keep names since it matched via a glob.
+        shell: bash
+        run: |
+          mkdir -p stage
+          cp -R "dist/${{ matrix.build_name }}" stage/
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.dist_path }}
+          path: app/stage/*
           if-no-files-found: error
 
   release:

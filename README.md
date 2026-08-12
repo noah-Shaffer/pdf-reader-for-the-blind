@@ -53,6 +53,9 @@ Once conversion finishes:
 
 ## Desktop app
 
+Just want to install and use it? See [DOWNLOAD.md](DOWNLOAD.md) for
+per-OS install steps. The rest of this section is for building it.
+
 Same app, packaged as a native window instead of served to a browser --
 `app/desktop_main.py` runs the Flask app in a background thread and opens
 it via [pywebview](https://pywebview.flowrl.com/). No hosting, no shared

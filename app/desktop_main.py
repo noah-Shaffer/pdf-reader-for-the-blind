@@ -5,15 +5,43 @@ used by the web deployment (app.py's own __main__ block covers that) --
 this is only what PyInstaller points at when building the desktop app."""
 
 import logging
+import os
+import shutil
 import socket
 import threading
 
 import webview
 
-from app import app
+from app import UPLOAD_DIR, _JOB_ID_RE, app
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class Api:
+    """Exposed to the page as window.pywebview.api. A plain HTML <a
+    download> link (what the web app's result.html normally uses) has
+    nothing to trigger inside pywebview's embedded webview -- unlike a real
+    browser, it has no download-handling UI of its own, so clicking it does
+    nothing visible at all. result.html detects it's running inside the
+    desktop app (window.pywebview only exists there) and calls this instead,
+    which shows a real native save dialog."""
+
+    window = None
+
+    def save_file(self, job_id, filename):
+        if not _JOB_ID_RE.match(job_id):
+            return {"error": "invalid job id"}
+        src = os.path.join(UPLOAD_DIR, job_id, filename)
+        if not os.path.isfile(src):
+            return {"error": "file not found"}
+
+        result = self.window.create_file_dialog(webview.SAVE_DIALOG, save_filename=filename)
+        if not result:
+            return {"cancelled": True}
+        dest = result[0] if isinstance(result, (list, tuple)) else result
+        shutil.copyfile(src, dest)
+        return {"saved": dest}
 
 
 def _free_port():
@@ -33,9 +61,16 @@ def main():
     )
     server_thread.start()
 
-    webview.create_window(
-        "STEM-Access", f"http://127.0.0.1:{port}/upload", width=1000, height=800, min_size=(600, 500)
+    api = Api()
+    window = webview.create_window(
+        "STEM-Access",
+        f"http://127.0.0.1:{port}/upload",
+        width=1000,
+        height=800,
+        min_size=(600, 500),
+        js_api=api,
     )
+    api.window = window
     webview.start()
 
 

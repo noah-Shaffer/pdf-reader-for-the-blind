@@ -41,9 +41,36 @@
     // users see the browser's own download bar/toast, but a screen reader
     // user gets no equivalent signal that anything happened. Announcing it
     // here mirrors the upload form's submit confirmation.
-    document.getElementById('download-link').addEventListener('click', function () {
-      document.getElementById('download-status').textContent =
-        'Downloading {{ download_name }}…';
+    document.getElementById('download-link').addEventListener('click', function (event) {
+      // window.pywebview only exists inside the desktop app's embedded
+      // webview, which (unlike a real browser) has no download-handling UI
+      // of its own -- a plain <a download> click does nothing visible
+      // there. Use the native save-dialog API (see desktop_main.py) instead
+      // of navigating to the download URL. The status wording differs
+      // deliberately: "Downloading" would be inaccurate here (nothing
+      // downloads in the background -- a save dialog opens and waits on
+      // the user), which matters for a screen reader user relying on this
+      // announcement to know what's actually happening.
+      if (window.pywebview) {
+        event.preventDefault();
+        document.getElementById('download-status').textContent =
+          'Opening a save dialog for {{ download_name }}…';
+        window.pywebview.api.save_file('{{ job_id }}', '{{ download_name }}').then(function (result) {
+          if (result && result.saved) {
+            document.getElementById('download-status').textContent =
+              'Saved to ' + result.saved;
+          } else if (result && result.cancelled) {
+            document.getElementById('download-status').textContent =
+              'Save cancelled.';
+          } else {
+            document.getElementById('download-status').textContent =
+              'Could not save the file.';
+          }
+        });
+      } else {
+        document.getElementById('download-status').textContent =
+          'Downloading {{ download_name }}…';
+      }
     });
   </script>
   {% endif %}

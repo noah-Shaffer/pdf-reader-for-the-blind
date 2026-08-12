@@ -16,12 +16,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS: dist/ has both the raw onedir build and the actual
+          # STEM-Access.app bundle built from it -- only the .app is useful
+          # to end users (it's the double-clickable one), so upload just
+          # that instead of both.
           - os: macos-latest
             artifact_name: stem-access-macos
+            dist_path: app/dist/STEM-Access.app
           - os: windows-latest
             artifact_name: stem-access-windows
+            dist_path: app/dist/STEM-Access
           - os: ubuntu-latest
             artifact_name: stem-access-linux
+            dist_path: app/dist/STEM-Access
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -43,7 +50,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: app/dist/*
+          path: ${{ matrix.dist_path }}
           if-no-files-found: error
 
   release:
@@ -59,6 +66,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Restore executable permissions
+        # actions/upload-artifact + actions/download-artifact don't reliably
+        # carry the Unix executable bit through their zip-based transport --
+        # binaries arrive non-executable even though they were fine right
+        # after the build, which surfaces to users as "can't be opened" /
+        # "permission denied". Windows .exe doesn't need this.
+        run: |
+          chmod +x artifacts/stem-access-macos/STEM-Access.app/Contents/MacOS/STEM-Access
+          chmod +x artifacts/stem-access-linux/STEM-Access/STEM-Access
 
       - name: Zip each platform's build
         run: |

@@ -65,6 +65,7 @@ Converted documents are saved automatically to:
 | Problem | Fix |
 |---|---|
 | macOS says the app is "damaged" or can't be opened | Right-click the app → **Open**, don't double-click (see step 3 above) |
+| macOS still says "can't be opened" after right-click → Open, or Terminal says `permission denied` when run directly | Run `chmod +x /Applications/STEM-Access.app/Contents/MacOS/STEM-Access`, then try again — the download lost its executable permission bit |
 | Windows SmartScreen blocks it | Click **More info** → **Run anyway** (see step 3 above) |
 | "That Anthropic API key was rejected" | Double-check the key was copied correctly from [console.anthropic.com](https://console.anthropic.com) |
 | Nothing happens when I open it | On Linux, make sure the binary is executable (`chmod +x`); on any OS, try running it from a terminal to see the error output |

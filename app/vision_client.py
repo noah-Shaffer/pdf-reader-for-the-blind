@@ -116,7 +116,7 @@ PAGE_TOOL = {
 }
 
 
-def _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=None):
+def _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=None, api_key=None):
     """Renders either the full page (y_fraction=None) or a vertical slice of
     it (y_fraction=(y0, y1), as fractions of page height) and asks Claude to
     transcribe that image. Shared by transcribe_page's full-page attempt and
@@ -160,7 +160,7 @@ def _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction
         )
     content.append({"type": "text", "text": instruction})
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
         model=MODEL,
         max_tokens=PAGE_MAX_TOKENS,
@@ -180,7 +180,7 @@ def _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction
     return []
 
 
-def transcribe_page(pdf_path, page_number, dpi=200, context_text=None):
+def transcribe_page(pdf_path, page_number, dpi=200, context_text=None, api_key=None):
     """Fallback for a page where local text extraction produced broken math
     (see document_parser._page_looks_math_garbled): renders just that page
     and asks Claude to transcribe it directly, with real LaTeX in place of
@@ -205,14 +205,18 @@ def transcribe_page(pdf_path, page_number, dpi=200, context_text=None):
     rejected, since splitting doubles the API calls for every garbled page,
     not just the rare one that needs it."""
     try:
-        return _transcribe_page_region(pdf_path, page_number, dpi, context_text)
+        return _transcribe_page_region(pdf_path, page_number, dpi, context_text, api_key=api_key)
     except anthropic.APIError:
         logger.warning(
             "transcribe_page full-page attempt failed for page %d; retrying as top/bottom halves",
             page_number,
         )
-        top = _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=(0.0, 0.5))
-        bottom = _transcribe_page_region(pdf_path, page_number, dpi, context_text, y_fraction=(0.5, 1.0))
+        top = _transcribe_page_region(
+            pdf_path, page_number, dpi, context_text, y_fraction=(0.0, 0.5), api_key=api_key
+        )
+        bottom = _transcribe_page_region(
+            pdf_path, page_number, dpi, context_text, y_fraction=(0.5, 1.0), api_key=api_key
+        )
         return top + bottom
 
 
@@ -269,8 +273,8 @@ def _extract_result(message):
     }
 
 
-def describe_image(image_path, context=None):
-    client = anthropic.Anthropic()
+def describe_image(image_path, context=None, api_key=None):
+    client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(**_build_params(image_path, context))
     return _extract_result(response)
 

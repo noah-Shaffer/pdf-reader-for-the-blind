@@ -502,11 +502,13 @@ def _image_result_to_html(result, caption):
     return f"<figure><figcaption>{caption_html}</figcaption>{description_html}</figure>"
 
 
-def blocks_to_html(blocks, image_results=None):
+def blocks_to_html(blocks, image_results=None, api_key=None):
     """image_results: optional {path: {"kind":..., "content":...}} of
     already-fetched figure descriptions (e.g. from a Batches API run). Any
     image not already in it gets described live, concurrently -- each call
-    is independent, so there's no reason to wait on them one at a time."""
+    is independent, so there's no reason to wait on them one at a time.
+    api_key: forwarded to each describe_image call (per-request BYOK key
+    from the upload form)."""
     image_results = dict(image_results or {})
 
     # One pass: assign each heading a stable id, track its nearest ancestor
@@ -536,7 +538,8 @@ def blocks_to_html(blocks, image_results=None):
     if missing:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             future_to_path = {
-                executor.submit(describe_image, path, context): path for path, context in missing
+                executor.submit(describe_image, path, context, api_key=api_key): path
+                for path, context in missing
             }
             for future in as_completed(future_to_path):
                 path = future_to_path[future]

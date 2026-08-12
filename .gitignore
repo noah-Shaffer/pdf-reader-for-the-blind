@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 app/uploads/*
 !app/uploads/.gitkeep
+app/build/
+app/dist/

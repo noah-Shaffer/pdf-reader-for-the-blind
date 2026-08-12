@@ -1,28 +1,50 @@
 import logging
 import os
 import re
+import sys
 import uuid
 
 import anthropic
-from dotenv import load_dotenv
 from flask import Flask, abort, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
 from document_parser import extract_pages, parse_blocks
 from assemble import blocks_to_html
 
-load_dotenv()
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+# Under PyInstaller, __file__ resolves inside a bundle dir that's read-only
+# (--onedir) or a fresh temp extraction wiped after every run (--onefile) --
+# neither is a place to persist a user's uploads/converted documents across
+# runs, so those go to the OS's normal per-user app-data directory instead.
+# Templates are read-only either way, so they're fine loaded straight out of
+# sys._MEIPASS (the bundle's extraction root PyInstaller sets at runtime).
+_FROZEN = getattr(sys, "frozen", False)
+
+if _FROZEN:
+    template_folder = os.path.join(sys._MEIPASS, "templates")
+    app = Flask(__name__, template_folder=template_folder)
+
+    if sys.platform == "darwin":
+        _data_dir = os.path.expanduser("~/Library/Application Support/STEM-Access")
+    elif sys.platform == "win32":
+        _data_dir = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "STEM-Access")
+    else:
+        _data_dir = os.path.join(
+            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "STEM-Access"
+        )
+    UPLOAD_DIR = os.path.join(_data_dir, "uploads")
+else:
+    app = Flask(__name__)
+    UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 _JOB_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
-app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
 
 
@@ -39,6 +61,10 @@ def upload_submit():
 
     if not uploaded.filename.lower().endswith(".pdf"):
         return render_template("upload.html", error="Only PDF files are supported.")
+
+    api_key = (request.form.get("api_key") or "").strip()
+    if not api_key:
+        return render_template("upload.html", error="Please enter your Anthropic API key.")
 
     job_id = uuid.uuid4().hex
     job_dir = os.path.join(UPLOAD_DIR, job_id)
@@ -59,7 +85,12 @@ def upload_submit():
         # parse_blocks may call Claude (transcribe_page) for pages where
         # local text extraction produced broken math -- handled separately
         # from the PDF-read failure above.
-        blocks = parse_blocks(pages, pdf_path=pdf_path)
+        blocks = parse_blocks(pages, pdf_path=pdf_path, api_key=api_key)
+    except anthropic.AuthenticationError:
+        return render_template(
+            "upload.html",
+            error="That Anthropic API key was rejected. Double-check it and try again.",
+        )
     except anthropic.APIError:
         logger.exception("Anthropic API call failed while transcribing a page")
         return render_template(
@@ -76,7 +107,12 @@ def upload_submit():
     logger.info("Parsed %d blocks", len(blocks))
 
     try:
-        content_html = blocks_to_html(blocks)
+        content_html = blocks_to_html(blocks, api_key=api_key)
+    except anthropic.AuthenticationError:
+        return render_template(
+            "upload.html",
+            error="That Anthropic API key was rejected. Double-check it and try again.",
+        )
     except anthropic.APIError:
         logger.exception("Anthropic API call failed while describing a figure")
         return render_template(

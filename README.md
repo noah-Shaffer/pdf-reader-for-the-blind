@@ -14,7 +14,7 @@ Turn a PDF into a screen-reader-accessible HTML page.
 ## Requirements
 
 - Python 3.9+
-- An Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
+- An Anthropic API key ([console.anthropic.com](https://console.anthropic.com)) — each person running the web/desktop app pastes in their own (see Bring-your-own-key below); `batch_convert.py`'s CLI path still reads one from `.env` (see Setup)
 
 ## Setup
 
@@ -23,7 +23,11 @@ cd STEM-ACCESS
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
 
+`batch_convert.py` (the CLI bulk-conversion path — see "Converting a large document") still reads its key from `.env`, since it's run directly by whoever owns that key, not served to other people:
+
+```bash
 cp .env.example .env
 # then edit .env and paste in your key:
 #   ANTHROPIC_API_KEY=sk-ant-...
@@ -37,11 +41,60 @@ cd app
 python3 app.py
 ```
 
-Open **http://127.0.0.1:5000/upload**, choose a PDF, submit, and wait — conversion time depends on how many figures the document has and how many pages need the math-transcription fallback (these run concurrently, but each individually takes a few seconds). The page confirms your submission immediately and announces it to screen readers too.
+Open **http://127.0.0.1:5000/upload**, paste in your Anthropic API key, choose a PDF, submit, and wait — conversion time depends on how many figures the document has and how many pages need the math-transcription fallback (these run concurrently, but each individually takes a few seconds). The page confirms your submission immediately and announces it to screen readers too.
+
+## Bring-your-own-key
+
+The web and desktop app never read `ANTHROPIC_API_KEY` from the server's environment — each visitor's key comes from the upload form itself (`api_key` field in `templates/upload.html`), is forwarded per-request through `parse_blocks`/`blocks_to_html` down to each individual Claude call in `vision_client.py`, and is never written to disk, logged, or persisted server-side. The browser remembers it in `localStorage` between visits (so it doesn't need retyping), but it never leaves that browser except in that visitor's own conversion requests. An invalid key surfaces its own "That Anthropic API key was rejected" error, separate from the generic API-error message.
 
 Once conversion finishes:
 - The result renders directly in the browser, with a table of contents at the top for quick navigation.
 - The full converted document is **automatically saved** to `app/uploads/<job>/<name>_accessible.html`, and a **Download this page as an HTML file** link lets you save it wherever you like via your browser's normal save dialog. Clicking it also announces "Downloading..." through the same kind of live status region as the upload form — a screen reader user gets a confirmation that something happened, not just the browser's own (visual-only) download indicator.
+
+## Desktop app
+
+Same app, packaged as a native window instead of served to a browser --
+`app/desktop_main.py` runs the Flask app in a background thread and opens
+it via [pywebview](https://pywebview.flowrl.com/). No hosting, no shared
+server, no key ever leaving the user's machine: each person pastes their
+own Anthropic key into the same upload form, used only for their own
+conversions.
+
+Run it locally without building anything:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements-desktop.txt   # pywebview, pyinstaller
+cd app
+python3 desktop_main.py
+```
+
+Build a standalone app (produces `app/dist/STEM-Access.app` on macOS, or
+`app/dist/STEM-Access/` with the executable inside on Windows/Linux):
+
+```bash
+cd app
+pyinstaller STEM-Access.spec --noconfirm
+```
+
+PyInstaller bundles for whatever OS it's run on, so a Mac build only
+produces a Mac app. [`.github/workflows/desktop-build.yml`](.github/workflows/desktop-build.yml)
+builds all three platforms in parallel on their real OSes via a GitHub
+Actions matrix, and attaches the results to a GitHub release whenever a
+`v*` tag is pushed.
+
+Uploaded PDFs and converted output are written under the OS's normal
+per-user app-data directory (`~/Library/Application Support/STEM-Access`
+on macOS, `%APPDATA%\STEM-Access` on Windows, `~/.local/share/STEM-Access`
+on Linux) rather than next to the app bundle, since a packaged app's own
+directory isn't guaranteed writable or persistent across runs.
+
+**Unsigned builds trigger OS warnings.** Without a paid Apple Developer
+account (notarization) or a Windows code-signing certificate, macOS
+Gatekeeper and Windows SmartScreen will flag the app as being from an
+unidentified developer. Users can still run it -- right-click → Open on
+macOS, "More info" → "Run anyway" on Windows -- worth calling out in
+release notes so it doesn't look broken.
 
 ## Converting a large document
 
@@ -65,8 +118,10 @@ Text, headings, tables, and the math-transcription fallback are still parsed the
 | [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) (Claude Sonnet 5) | Classifying and describing figures, transcribing math-garbled pages, and (optionally) the Message Batches API for bulk/cheaper runs |
 | [latex2mathml](https://pypi.org/project/latex2mathml/) | Converts LaTeX (figure transcriptions, `$...$` spans, bare LaTeX tokens, and aligned-environment derivations found in prose) into real MathML |
 | [Python-Markdown](https://python-markdown.github.io/) | Renders Markdown tables into HTML. Inline `**bold**`/`_italic_` text formatting is handled separately, by a small hand-written regex converter — not this library — specifically because its block-level parser mis-fires on ordinary text that happens to start with a numbered-list-shaped prefix ("1. The Geometric Series", a real heading, not a list) |
-| [python-dotenv](https://pypi.org/project/python-dotenv/) | Loads `ANTHROPIC_API_KEY` from `.env` |
+| [python-dotenv](https://pypi.org/project/python-dotenv/) | Loads `ANTHROPIC_API_KEY` from `.env` for `batch_convert.py`'s CLI runs (the web/desktop app takes each user's own key from the upload form instead — see Bring-your-own-key below) |
 | `concurrent.futures` (Python standard library) | Runs independent Claude calls (figure descriptions, page transcriptions) concurrently instead of one at a time |
+| [pywebview](https://pywebview.flowrl.com/) | Desktop build only: opens the Flask app in a native window instead of a browser tab — see Desktop app below |
+| [PyInstaller](https://pyinstaller.org/) | Desktop build only: bundles the app into a standalone `.app`/executable |
 
 Full list with exact install names: [`requirements.txt`](requirements.txt).
 
@@ -95,11 +150,24 @@ app/
                          contents, disambiguating duplicated heading text
                          with its parent chapter
   batch_convert.py       CLI for bulk/large-document conversion via Batches
+  desktop_main.py        Entry point for the packaged desktop build: runs
+                          the Flask app in a background thread, opens it in
+                          a native window via pywebview
+  STEM-Access.spec        PyInstaller build spec (bundles templates/ alongside
+                          the frozen app)
   templates/
     upload.html           Accessible upload form, with submit confirmation
     result.html            Accessible result page, with a download link
-  uploads/                 Uploaded PDFs + extracted figures (gitignored)
+  uploads/                 Uploaded PDFs + extracted figures (gitignored;
+                          desktop build writes these to the OS's per-user
+                          app-data directory instead — see Desktop app)
+.github/workflows/
+  desktop-build.yml       Matrix-builds the desktop app for macOS/Windows/
+                          Linux and attaches them to a GitHub release on
+                          each version tag push
 requirements.txt
+requirements-desktop.txt  Extra deps for the desktop build only (pywebview,
+                          PyInstaller)
 .env.example
 ```
 

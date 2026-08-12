@@ -37,6 +37,16 @@
 
     <form id="upload-form" action="{{ url_for('upload_submit') }}" method="post" enctype="multipart/form-data">
       <div>
+        <label for="api-key">Your Anthropic API key</label>
+        <input type="password" id="api-key" name="api_key" autocomplete="off" aria-describedby="api-key-hint" required>
+        <p id="api-key-hint">
+          Used only for this conversion, sent directly to your browser's request and never stored on
+          the server. Get a key at
+          <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>.
+        </p>
+      </div>
+
+      <div>
         <label for="pdf-file">Choose a PDF file to convert</label>
         <input type="file" id="pdf-file" name="pdf" accept="application/pdf" required>
       </div>
@@ -50,12 +60,22 @@
   </main>
 
   <script>
+    // Convenience only: remembers the key in this browser so it doesn't
+    // have to be retyped on every conversion. Never sent anywhere except
+    // this form's own submission to this server.
+    var apiKeyField = document.getElementById('api-key');
+    var storedKey = window.localStorage.getItem('stem-access-api-key');
+    if (storedKey) {
+      apiKeyField.value = storedKey;
+    }
+
     // Progressive enhancement: the form still works with JS disabled --
     // the browser's own navigation/loading state is the only feedback then.
     // With JS, confirm the submission happened immediately, for sighted
     // users (button state) and screen reader users (the aria-live region
     // re-announces because its text content changes) alike.
     document.getElementById('upload-form').addEventListener('submit', function () {
+      window.localStorage.setItem('stem-access-api-key', apiKeyField.value);
       var button = document.getElementById('submit-button');
       button.disabled = true;
       button.textContent = 'Converting…';

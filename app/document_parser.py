@@ -98,11 +98,12 @@ def extract_pages(pdf_path, image_dir):
     )
 
 
-def parse_blocks(pages, pdf_path=None):
+def parse_blocks(pages, pdf_path=None, api_key=None):
     """pdf_path: enables the math-garbled-page fallback (renders the page
     and has Claude transcribe it directly) -- pass it whenever available.
     Without it, garbled pages are parsed locally like any other (i.e. left
-    garbled)."""
+    garbled). api_key: forwarded to each transcribe_page call (per-request
+    BYOK key from the upload form)."""
     per_page_blocks = [None] * len(pages)
     garbled_jobs = []  # (page_index, page_number, local_blocks, context_text)
 
@@ -135,7 +136,9 @@ def parse_blocks(pages, pdf_path=None):
         )
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             future_to_job = {
-                executor.submit(transcribe_page, pdf_path, page_number, context_text=context_text): (
+                executor.submit(
+                    transcribe_page, pdf_path, page_number, context_text=context_text, api_key=api_key
+                ): (
                     i,
                     page_number,
                     local_blocks,

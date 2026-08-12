@@ -1,0 +1,5 @@
+# Extra dependencies for the desktop build only -- not needed to run the
+# web app (see requirements.txt). Install both when building/running the
+# desktop version: pip install -r requirements.txt -r requirements-desktop.txt
+pywebview
+pyinstaller

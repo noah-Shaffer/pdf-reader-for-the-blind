@@ -30,7 +30,7 @@ operating system:
 1. Unzip the download.
 2. Drag `STEM-Access.app` to your `Applications` folder.
 3. **Right-click** (not double-click) `STEM-Access.app` and choose **Open**, then click **Open** again in the dialog that appears.
-   - This app isn't signed with a paid Apple Developer certificate, so a plain double-click will refuse to open it and just say it's "damaged" or from an "unidentified developer." Right-click → Open is a one-time step — after that, it opens normally like any other app.
+   - This app isn't signed with a paid Apple Developer certificate, so a plain double-click will refuse to open it and just say "Apple could not verify “STEM-Access” is free of malware that may harm your Mac or compromise your privacy." Go into Settings >> Security and Privacy >> scroll to bottom "STEM-Access" open anyway. 
 
 ### Windows
 

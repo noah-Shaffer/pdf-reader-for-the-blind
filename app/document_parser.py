@@ -83,6 +83,29 @@ def _fix_broken_ligatures(text):
     return _BROKEN_LIGATURE_RE.sub("ff", text)
 
 
+# pymupdf4llm's own OCR feature (separate from and in addition to this
+# app's own figure-crop-and-describe pipeline) sometimes OCRs text sitting
+# inside a picture/chart and splices it directly into the page's text
+# stream, wrapped in these HTML-comment markers with literal "<br>" tags
+# rather than real structure -- e.g. a stock-info box's labels/values run
+# together as one line, or pure noise from an unreadable map/photo. That
+# same picture already gets a proper accessible description from Claude
+# via the normal image-block pipeline (a real data table for a chart, a
+# descriptive paragraph for a diagram), so this raw OCR dump is both
+# redundant and much lower quality -- left in place, it would otherwise
+# render as literal "<!-- Start of picture text -->" / "&lt;br&gt;" text,
+# read aloud character-by-character-ish by a screen reader. DOTALL/non-
+# greedy since the block can span multiple physical lines (the start
+# marker alone on one line, content and the end marker on the next).
+_PICTURE_TEXT_BLOCK_RE = re.compile(
+    r"<!--\s*Start of picture text\s*-->.*?<!--\s*End of picture text\s*-->", re.DOTALL
+)
+
+
+def _strip_picture_text_blocks(text):
+    return _PICTURE_TEXT_BLOCK_RE.sub("", text)
+
+
 def extract_pages(pdf_path, image_dir):
     """Local, free extraction: reading order, headings, tables, and cropped
     figures come straight from the PDF's own structure via pymupdf4llm --
@@ -182,6 +205,7 @@ def parse_blocks(pages, pdf_path=None, api_key=None):
 
 def _parse_page_text(text):
     text = _fix_broken_ligatures(text)
+    text = _strip_picture_text_blocks(text)
     blocks = []
     paragraph_lines = []
     table_lines = []

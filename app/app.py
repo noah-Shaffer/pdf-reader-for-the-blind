@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import sys
+import tempfile
 import uuid
 
 import anthropic
@@ -72,8 +73,20 @@ def upload_submit():
     pdf_path = os.path.join(job_dir, uploaded.filename)
     uploaded.save(pdf_path)
 
+    # Cropped figures only need to exist transiently, to feed the Claude
+    # vision calls below -- the final saved HTML embeds Claude's
+    # description of each figure, never the image file itself, so these
+    # never needed to live under the persistent per-user data dir. A plain
+    # OS temp dir also sidesteps a pymupdf4llm bug: it builds its Markdown
+    # image reference by sanitizing the image path's spaces/parens/brackets,
+    # then reuses that *same sanitized string* as the real filesystem write
+    # target -- so a space anywhere in image_dir (e.g. macOS's own
+    # "Application Support" folder name, or any username containing one)
+    # corrupts the actual write path and crashes with FileNotFoundError.
+    image_dir = tempfile.mkdtemp(prefix=f"stem-access-{job_id}-")
+
     try:
-        pages = extract_pages(pdf_path, image_dir=os.path.join(job_dir, "images"))
+        pages = extract_pages(pdf_path, image_dir=image_dir)
     except Exception:
         logger.exception("Failed to parse PDF")
         return render_template(

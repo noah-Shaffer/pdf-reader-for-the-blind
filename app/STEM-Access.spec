@@ -2,15 +2,19 @@
 
 from PyInstaller.utils.hooks import collect_data_files
 
-# Several dependencies load non-.py data files at import time that
-# PyInstaller's default Analysis can't see (it only follows Python
-# imports): pymupdf4llm imports pymupdf.layout, which needs the ONNX
-# models + yaml configs under pymupdf/layout/resources/; latex2mathml
-# reads its symbol table from unimathsymbols.txt at import time. Without
-# collecting these explicitly, the frozen app crashes on startup with
-# FileNotFoundError as soon as the corresponding module is imported.
+# Several dependencies load non-.py data files that PyInstaller's default
+# Analysis can't see (it only follows Python imports): pymupdf imports
+# pymupdf.layout at load time, needing the ONNX models + yaml configs
+# under pymupdf/layout/resources/; latex2mathml reads its symbol table
+# from unimathsymbols.txt at import time; pymupdf4llm loads its own
+# separate OCR-decision ONNX model (pymupdf4llm/ocr/ocr_decision_model.onnx)
+# while actually parsing a page, not at import time -- which is why this
+# one didn't surface until a real PDF was uploaded, unlike the first two.
+# Without collecting these, the frozen app crashes with FileNotFoundError
+# either on startup or on first use.
 datas = [('templates', 'templates')]
 datas += collect_data_files('pymupdf')
+datas += collect_data_files('pymupdf4llm')
 datas += collect_data_files('latex2mathml')
 
 a = Analysis(

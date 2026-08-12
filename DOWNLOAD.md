@@ -5,6 +5,7 @@ server, no data leaving your machine except your own PDF conversions
 (which use your own Anthropic API key, entered inside the app).
 
 ## 1. Get an Anthropic API key
+You must have enough credits to complete the pdf conversion, or it will not transcribe well.
 
 You'll need your own key to convert documents — the app doesn't come with
 one built in. Create one at

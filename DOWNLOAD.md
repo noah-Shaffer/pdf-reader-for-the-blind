@@ -48,7 +48,7 @@ operating system:
    ./STEM-Access/STEM-Access
    ```
 
-## 4. Use it
+## 4. Use it (PDF only!! v0.1.1)
 
 The app opens its own window with the same upload form as the web version:
 paste in your Anthropic API key, choose a PDF, and convert. Your key is

@@ -10,6 +10,7 @@ You'll need your own key to convert documents — the app doesn't come with
 one built in. Create one at
 [console.anthropic.com](https://console.anthropic.com) before your first
 conversion (you can also do this after installing).
+*Converting a pdf costs API credits, in testing ~100 math textbook pages = $3.00 of Claude tokens*
 
 ## 2. Download
 

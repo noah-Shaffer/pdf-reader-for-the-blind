@@ -1,5 +1,12 @@
 # Extra dependencies for the desktop build only -- not needed to run the
 # web app (see requirements.txt). Install both when building/running the
 # desktop version: pip install -r requirements.txt -r requirements-desktop.txt
-pywebview
 pyinstaller
+# Windows only: the [qt5] extra pulls in pywebview's own verified
+# combination (QtPy + PyQt5 + pyqtwebengine) needed to force it onto the Qt
+# backend there instead of its default pythonnet/.NET-based ones, which
+# have a chronic PyInstaller incompatibility (see desktop_main.py).
+# macOS/Linux use pywebview's built-in Cocoa/GTK backends and don't need
+# Qt at all.
+pywebview[qt5] ; sys_platform == "win32"
+pywebview ; sys_platform != "win32"

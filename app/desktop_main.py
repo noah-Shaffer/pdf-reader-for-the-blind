@@ -8,7 +8,15 @@ import logging
 import os
 import shutil
 import socket
+import sys
 import threading
+
+if sys.platform == "win32":
+    # Pin qtpy to PyQt5 before webview (or qtpy itself) gets imported --
+    # left unset, qtpy probes for whichever Qt binding is importable at
+    # runtime, which is one more failure mode to rule out in a frozen build
+    # that only actually bundles PyQt5.
+    os.environ.setdefault("QT_API", "pyqt5")
 
 import webview
 
@@ -71,7 +79,16 @@ def main():
         js_api=api,
     )
     api.window = window
-    webview.start()
+    # Windows only: pywebview's other backends (winforms/mshtml/edgechromium)
+    # all render through pythonnet's .NET Framework CLR hosting, which has a
+    # long-standing, often-unfixable PyInstaller incompatibility -- frozen
+    # builds intermittently fail with "Failed to resolve
+    # Python.Runtime.Loader.Initialize" trying to load Python.Runtime.dll
+    # (see https://github.com/r0x0r/pywebview/issues/1215, unresolved even
+    # upstream). The Qt backend doesn't touch .NET/pythonnet at all, so it
+    # sidesteps the bug entirely. macOS (Cocoa) and Linux (GTK) backends
+    # aren't affected, so leave them on pywebview's own default.
+    webview.start(gui="qt" if sys.platform == "win32" else None)
 
 
 if __name__ == "__main__":

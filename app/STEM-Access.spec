@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+
 from PyInstaller.utils.hooks import collect_data_files
 
 # Several dependencies load non-.py data files that PyInstaller's default
@@ -17,12 +19,33 @@ datas += collect_data_files('pymupdf')
 datas += collect_data_files('pymupdf4llm')
 datas += collect_data_files('latex2mathml')
 
+# Windows only: desktop_main.py forces pywebview onto its Qt backend there
+# (see that file for why). qtpy picks PyQt5's submodules at runtime based
+# on QT_API/what's importable, which PyInstaller's static Analysis can't
+# see -- without these listed explicitly, the frozen exe would crash with
+# ModuleNotFoundError the moment webview.platforms.qt tries to import them.
+# macOS/Linux don't install PyQt5 at all (requirements-desktop.txt), so
+# this must stay Windows-only or those builds would fail outright.
+hiddenimports = []
+if sys.platform == 'win32':
+    hiddenimports += [
+        'webview.platforms.qt',
+        'qtpy',
+        'PyQt5.QtCore',
+        'PyQt5.QtGui',
+        'PyQt5.QtWidgets',
+        'PyQt5.QtNetwork',
+        'PyQt5.QtWebChannel',
+        'PyQt5.QtWebEngineCore',
+        'PyQt5.QtWebEngineWidgets',
+    ]
+
 a = Analysis(
     ['desktop_main.py'],
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

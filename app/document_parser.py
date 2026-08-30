@@ -133,7 +133,13 @@ def parse_blocks(pages, pdf_path=None, api_key=None):
     for i, page in enumerate(pages):
         text = page["text"]
         if pdf_path and _page_looks_math_garbled(text):
-            page_number = page["metadata"]["page"]
+            # pymupdf4llm normally puts a 1-indexed "page" key in this dict,
+            # but a page that pymupdf4llm routed through its own OCR (a
+            # scanned/image page it decided needed Tesseract) can come back
+            # with a metadata dict missing that key entirely -- fall back to
+            # this page's own position in `pages`, which pymupdf4llm always
+            # returns in document order regardless of the OCR path taken.
+            page_number = page["metadata"].get("page", i + 1)
             local_blocks = _parse_page_text(text)
             # Context from the *local* extraction of a neighboring page, not
             # from another page's Claude transcription -- using the latter
